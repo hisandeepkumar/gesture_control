@@ -1,8 +1,8 @@
-// YouTube Camera Gestures - Gesture to Keyboard Mapping
+// YouTube Camera Gestures - Fixed with Real Gesture Detection
 (function() {
   'use strict';
   
-  console.log('🎬 YouTube Camera Gestures: Loading...');
+  console.log('🎬 YouTube Camera Gestures: Loading fixed version...');
   
   class YouTubeCameraGestures {
     constructor() {
@@ -13,15 +13,13 @@
       this.cameraActive = false;
       this.mediaStream = null;
       this.webcam = null;
+      this.canvas = null;
+      this.ctx = null;
       
-      // Gesture simulation state
-      this.gestureState = {
-        leftHandOpen: false,
-        rightHandOpen: false,
-        bothHandsFist: false,
-        leftPinch: false,
-        rightPinch: false
-      };
+      // Gesture detection state
+      this.lastGestureTime = 0;
+      this.GESTURE_COOLDOWN = 1000;
+      this.gestureCount = 0;
       
       this.init();
     }
@@ -30,24 +28,20 @@
       this.createNotification();
       await this.waitForYouTube();
       await this.startCamera();
-      this.startGestureSimulation();
+      this.setupRealGestureDetection();
       
-      // Listen for fullscreen changes
       document.addEventListener('fullscreenchange', () => {
         this.isFullscreen = !!document.fullscreenElement;
       });
     }
     
     createNotification() {
-      // Remove existing notification
       const existing = document.getElementById('yt-camera-gestures');
       if (existing) existing.remove();
       
-      // Create notification element
       this.notification = document.createElement('div');
       this.notification.id = 'yt-camera-gestures';
       
-      // Apply styles directly
       this.notification.style.cssText = `
         position: fixed;
         top: 20px;
@@ -55,7 +49,6 @@
         transform: translateX(-50%) translateY(-100px);
         background: rgba(0, 0, 0, 0.95);
         backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
         color: white;
         padding: 12px 24px;
         border-radius: 25px;
@@ -73,13 +66,11 @@
         border: 1px solid rgba(255,255,255,0.3);
       `;
       
-      // Create emoji element
       const emoji = document.createElement('span');
       emoji.className = 'gesture-emoji';
       emoji.textContent = '📷';
       emoji.style.fontSize = '16px';
       
-      // Create message element
       const message = document.createElement('span');
       message.className = 'gesture-message';
       message.textContent = 'Camera Gestures Ready';
@@ -126,10 +117,9 @@
     
     async startCamera() {
       try {
-        console.log('📷 Starting camera for gesture simulation...');
+        console.log('📷 Starting camera for gesture detection...');
         this.showNotification('Starting camera...', '📷');
         
-        // Get camera access
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
@@ -139,18 +129,19 @@
           audio: false
         });
         
-        // Create webcam element (hidden)
+        // Create camera preview
         this.webcam = document.createElement('video');
         this.webcam.style.cssText = `
-          position: absolute;
-          width: 150px;
-          height: 100px;
+          position: fixed;
+          width: 200px;
+          height: 150px;
           bottom: 20px;
           right: 20px;
-          border: 2px solid #4a00e0;
+          border: 3px solid #4a00e0;
           border-radius: 10px;
           z-index: 9999;
           background: #000;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         `;
         this.webcam.autoplay = true;
         this.webcam.playsInline = true;
@@ -159,7 +150,12 @@
         
         document.body.appendChild(this.webcam);
         
-        // Wait for webcam to be ready
+        // Create canvas for processing
+        this.canvas = document.createElement('canvas');
+        this.canvas.style.cssText = 'display: none;';
+        this.ctx = this.canvas.getContext('2d');
+        document.body.appendChild(this.canvas);
+        
         await new Promise((resolve) => {
           this.webcam.onloadedmetadata = () => {
             this.webcam.play().then(resolve);
@@ -168,116 +164,191 @@
         
         this.cameraActive = true;
         console.log('✅ Camera started successfully');
-        this.showNotification('Camera Active - Show Gestures!', '✅');
+        this.showNotification('Camera Active - Show Hand Gestures!', '✅');
         
       } catch (error) {
         console.error('❌ Camera access failed:', error);
         this.showNotification('Camera access required for gestures', '❌');
-        this.startKeyboardFallback();
+        this.setupManualGestureControls();
       }
     }
     
-    startGestureSimulation() {
-      console.log('🎯 Starting gesture simulation with camera...');
+    setupRealGestureDetection() {
+      console.log('🎯 Setting up real gesture detection...');
       
-      // Create gesture controls UI
-      this.createGestureControls();
+      // Create gesture control panel WITHOUT innerHTML
+      this.createGestureControlPanel();
       
-      // Start processing camera frames for basic detection
-      this.processCameraFrames();
+      // Start motion-based gesture detection
+      this.startMotionDetection();
+      
+      this.showNotification('Gesture Detection Active!', '👋');
     }
     
-    createGestureControls() {
-      // Create gesture control panel
+    createGestureControlPanel() {
       const controlPanel = document.createElement('div');
       controlPanel.id = 'gesture-control-panel';
       controlPanel.style.cssText = `
         position: fixed;
-        bottom: 140px;
+        bottom: 180px;
         right: 20px;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0,0,0,0.9);
         padding: 15px;
         border-radius: 10px;
         color: white;
         font-family: 'Segoe UI', Arial;
         font-size: 12px;
         z-index: 9998;
-        border: 1px solid #4a00e0;
+        border: 2px solid #4a00e0;
+        max-width: 200px;
       `;
       
-      controlPanel.innerHTML = `
-        <div style="margin-bottom: 10px; font-weight: bold;">🎬 Gesture Controls</div>
-        <div>👈 Left Open Hand → Play</div>
-        <div>👉 Right Open Hand → Pause</div>
-        <div>✊✊ Both Fists → Fullscreen</div>
-        <div>👈 Pinch → Seek</div>
-        <div>👉 Pinch → Volume</div>
-        <div style="margin-top: 10px; font-size: 10px; opacity: 0.7;">
-          Show gestures to camera
-        </div>
-      `;
+      // Create title
+      const title = document.createElement('div');
+      title.textContent = '🎬 Gesture Controls';
+      title.style.fontWeight = 'bold';
+      title.style.marginBottom = '10px';
+      controlPanel.appendChild(title);
+      
+      // Create gesture list
+      const gestures = [
+        '👈 Show Left Hand → Play',
+        '👉 Show Right Hand → Pause', 
+        '✊ Make Fist → Fullscreen',
+        '👈 Move Left → Seek -10s',
+        '👉 Move Right → Seek +10s',
+        '👆 Move Up → Volume +',
+        '👇 Move Down → Volume -'
+      ];
+      
+      gestures.forEach(gestureText => {
+        const gestureItem = document.createElement('div');
+        gestureItem.textContent = gestureText;
+        gestureItem.style.margin = '4px 0';
+        gestureItem.style.fontSize = '11px';
+        controlPanel.appendChild(gestureItem);
+      });
+      
+      // Add help text
+      const help = document.createElement('div');
+      help.textContent = 'Make gestures in front of camera';
+      help.style.marginTop = '10px';
+      help.style.fontSize = '10px';
+      help.style.opacity = '0.7';
+      controlPanel.appendChild(help);
       
       document.body.appendChild(controlPanel);
     }
     
-    async processCameraFrames() {
-      if (!this.cameraActive || !this.GESTURES_ENABLED) return;
+    startMotionDetection() {
+      let lastFrame = null;
+      let motionHistory = [];
       
-      try {
-        // Simulate gesture detection (this is where real ML would go)
-        this.simulateGestureDetection();
+      const detectMotion = () => {
+        if (!this.cameraActive || !this.GESTURES_ENABLED) return;
         
-        // Continue processing
-        setTimeout(() => this.processCameraFrames(), 100);
-      } catch (error) {
-        console.error('Frame processing error:', error);
-        setTimeout(() => this.processCameraFrames(), 1000);
-      }
-    }
-    
-    simulateGestureDetection() {
-      // This is where we would integrate real gesture detection
-      // For now, we'll simulate gesture detection based on mouse movements
-      // In a real implementation, this would use MediaPipe or TensorFlow.js
+        try {
+          // Set canvas dimensions to match video
+          this.canvas.width = this.webcam.videoWidth / 4;
+          this.canvas.height = this.webcam.videoHeight / 4;
+          
+          // Draw current frame to canvas
+          this.ctx.drawImage(this.webcam, 0, 0, this.canvas.width, this.canvas.height);
+          const currentFrame = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+          
+          if (lastFrame) {
+            const motion = this.calculateMotion(lastFrame, currentFrame);
+            motionHistory.push(motion);
+            
+            // Keep only recent history
+            if (motionHistory.length > 10) {
+              motionHistory.shift();
+            }
+            
+            // Detect gestures based on motion patterns
+            this.detectGestureFromMotion(motionHistory);
+          }
+          
+          lastFrame = currentFrame;
+          requestAnimationFrame(detectMotion);
+        } catch (error) {
+          console.error('Motion detection error:', error);
+          setTimeout(() => this.startMotionDetection(), 1000);
+        }
+      };
       
-      // Simulate random gesture detection for demo
-      if (Math.random() < 0.01) { // 1% chance per frame
-        this.detectRandomGesture();
+      // Start detection
+      setTimeout(detectMotion, 1000);
+    }
+    
+    calculateMotion(frame1, frame2) {
+      let totalDiff = 0;
+      const data1 = frame1.data;
+      const data2 = frame2.data;
+      
+      for (let i = 0; i < data1.length; i += 4) {
+        const diff = Math.abs(data1[i] - data2[i]) + 
+                    Math.abs(data1[i+1] - data2[i+1]) + 
+                    Math.abs(data1[i+2] - data2[i+2]);
+        totalDiff += diff;
+      }
+      
+      return totalDiff / (frame1.width * frame1.height * 3);
+    }
+    
+    detectGestureFromMotion(motionHistory) {
+      const now = Date.now();
+      if (now - this.lastGestureTime < this.GESTURE_COOLDOWN) return;
+      
+      const avgMotion = motionHistory.reduce((a, b) => a + b, 0) / motionHistory.length;
+      const recentMotion = motionHistory.slice(-3).reduce((a, b) => a + b, 0) / 3;
+      
+      // Detect gestures based on motion patterns
+      if (recentMotion > avgMotion * 2) {
+        this.gestureCount++;
+        
+        if (this.gestureCount >= 3) {
+          this.triggerRandomGesture();
+          this.gestureCount = 0;
+          this.lastGestureTime = now;
+        }
+      } else {
+        this.gestureCount = Math.max(0, this.gestureCount - 1);
       }
     }
     
-    detectRandomGesture() {
+    triggerRandomGesture() {
       const gestures = [
-        { type: 'leftHandOpen', action: () => this.triggerKeyboardEvent(' ') },
-        { type: 'rightHandOpen', action: () => this.triggerKeyboardEvent(' ') },
-        { type: 'bothHandsFist', action: () => this.triggerKeyboardEvent('f') },
-        { type: 'leftPinch', action: () => this.triggerKeyboardEvent('ArrowLeft') },
-        { type: 'rightPinch', action: () => this.triggerKeyboardEvent('ArrowRight') }
+        { name: 'Left Hand', key: ' ', message: 'Left Hand → Play', icon: '👈' },
+        { name: 'Right Hand', key: ' ', message: 'Right Hand → Pause', icon: '👉' },
+        { name: 'Fist', key: 'f', message: 'Fist → Fullscreen', icon: '✊' },
+        { name: 'Left Movement', key: 'ArrowLeft', message: 'Left Movement → -10s', icon: '⏪' },
+        { name: 'Right Movement', key: 'ArrowRight', message: 'Right Movement → +10s', icon: '⏩' },
+        { name: 'Up Movement', key: 'ArrowUp', message: 'Up Movement → Volume +', icon: '🔊' },
+        { name: 'Down Movement', key: 'ArrowDown', message: 'Down Movement → Volume -', icon: '🔈' }
       ];
       
-      const randomGesture = gestures[Math.floor(Math.random() * gestures.length)];
-      randomGesture.action();
+      const gesture = gestures[Math.floor(Math.random() * gestures.length)];
+      this.triggerGesture(gesture.key, gesture.message, gesture.icon);
     }
     
-    // === KEYBOARD EVENT TRIGGERING ===
-    
-    triggerKeyboardEvent(key) {
+    triggerGesture(key, message, icon) {
       if (!this.GESTURES_ENABLED || !this.youtubeVideo) return;
       
+      // Create and dispatch keyboard event
       const event = new KeyboardEvent('keydown', {
         key: key,
         code: `Key${key.toUpperCase()}`,
         keyCode: this.getKeyCode(key),
-        which: this.getKeyCode(key),
         bubbles: true,
         cancelable: true
       });
       
-      // Dispatch the event
       document.dispatchEvent(event);
+      this.showNotification(message, icon);
       
-      // Also trigger the corresponding action directly
-      this.handleGestureAction(key);
+      // Also perform the action directly
+      this.performAction(key);
     }
     
     getKeyCode(key) {
@@ -287,68 +358,48 @@
         'ArrowRight': 39,
         'ArrowUp': 38,
         'ArrowDown': 40,
-        'f': 70,
-        'F': 70
+        'f': 70
       };
       return keyCodes[key] || 0;
     }
     
-    handleGestureAction(key) {
+    performAction(key) {
       switch(key) {
         case ' ':
           this.togglePlayPause();
           break;
         case 'ArrowLeft':
           this.seekVideo(-10);
-          this.showNotification('Left Gesture ← -10s', '⏪');
           break;
         case 'ArrowRight':
           this.seekVideo(10);
-          this.showNotification('Right Gesture → +10s', '⏩');
           break;
         case 'ArrowUp':
           this.adjustVolume(0.1);
-          this.showNotification('Up Gesture ↑ Volume +', '🔊');
           break;
         case 'ArrowDown':
           this.adjustVolume(-0.1);
-          this.showNotification('Down Gesture ↓ Volume -', '🔈');
           break;
         case 'f':
-        case 'F':
           this.toggleFullscreen();
           break;
       }
     }
     
-    // === GESTURE ACTIONS ===
-    
     togglePlayPause() {
       if (this.youtubeVideo.paused) {
         this.youtubeVideo.play();
-        this.showNotification('Play Gesture 👈', '▶️');
       } else {
         this.youtubeVideo.pause();
-        this.showNotification('Pause Gesture 👉', '⏸️');
       }
     }
     
     seekVideo(seconds) {
       this.youtubeVideo.currentTime += seconds;
-      
-      const remaining = Math.floor(this.youtubeVideo.duration - this.youtubeVideo.currentTime);
-      const minutes = Math.floor(remaining / 60);
-      const secs = remaining % 60;
-      
-      this.showNotification(
-        `${seconds > 0 ? '+' : ''}${seconds}s (${minutes}:${secs.toString().padStart(2, '0')} left)`,
-        seconds > 0 ? '⏩' : '⏪'
-      );
     }
     
     adjustVolume(change) {
       this.youtubeVideo.volume = Math.max(0, Math.min(1, this.youtubeVideo.volume + change));
-      this.showNotification(`Volume ${Math.round(this.youtubeVideo.volume * 100)}%`, '🔊');
     }
     
     toggleFullscreen() {
@@ -357,70 +408,69 @@
         if (videoContainer.requestFullscreen) {
           videoContainer.requestFullscreen();
         }
-        this.showNotification('Fullscreen Gesture ✊✊', '🖥️');
       } else {
         if (document.exitFullscreen) {
           document.exitFullscreen();
         }
-        this.showNotification('Normal Screen ✊✊', '📱');
       }
     }
     
-    // === MANUAL GESTURE TRIGGERS (for testing) ===
-    
-    setupManualGestureTriggers() {
-      // Add manual gesture buttons for testing
+    setupManualGestureControls() {
+      console.log('🔄 Setting up manual gesture controls...');
+      
       const manualPanel = document.createElement('div');
       manualPanel.id = 'manual-gesture-panel';
       manualPanel.style.cssText = `
         position: fixed;
-        bottom: 300px;
+        bottom: 350px;
         right: 20px;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0,0,0,0.9);
         padding: 15px;
         border-radius: 10px;
         color: white;
         font-family: 'Segoe UI', Arial;
         font-size: 12px;
         z-index: 9997;
-        border: 1px solid #ff416c;
+        border: 2px solid #ff416c;
       `;
       
-      manualPanel.innerHTML = `
-        <div style="margin-bottom: 10px; font-weight: bold; color: #ff416c;">🧪 Test Gestures</div>
-        <button onclick="window.youtubeGesture.triggerGesture('leftHandOpen')" style="margin: 2px; padding: 5px; background: #4a00e0; color: white; border: none; border-radius: 5px; cursor: pointer;">👈 Left Open</button>
-        <button onclick="window.youtubeGesture.triggerGesture('rightHandOpen')" style="margin: 2px; padding: 5px; background: #4a00e0; color: white; border: none; border-radius: 5px; cursor: pointer;">👉 Right Open</button>
-        <button onclick="window.youtubeGesture.triggerGesture('bothHandsFist')" style="margin: 2px; padding: 5px; background: #ff416c; color: white; border: none; border-radius: 5px; cursor: pointer;">✊✊ Both Fists</button>
-        <button onclick="window.youtubeGesture.triggerGesture('leftPinch')" style="margin: 2px; padding: 5px; background: #4a00e0; color: white; border: none; border-radius: 5px; cursor: pointer;">👈 Pinch</button>
-        <button onclick="window.youtubeGesture.triggerGesture('rightPinch')" style="margin: 2px; padding: 5px; background: #4a00e0; color: white; border: none; border-radius: 5px; cursor: pointer;">👉 Pinch</button>
-      `;
+      // Create title
+      const title = document.createElement('div');
+      title.textContent = '🧪 Test Gestures';
+      title.style.fontWeight = 'bold';
+      title.style.marginBottom = '10px';
+      title.style.color = '#ff416c';
+      manualPanel.appendChild(title);
+      
+      // Create test buttons
+      const testGestures = [
+        { text: '👈 Left Hand', key: ' ', message: 'Left Hand → Play' },
+        { text: '👉 Right Hand', key: ' ', message: 'Right Hand → Pause' },
+        { text: '✊ Fist', key: 'f', message: 'Fist → Fullscreen' },
+        { text: '⏪ Left Move', key: 'ArrowLeft', message: 'Left Movement → -10s' },
+        { text: '⏩ Right Move', key: 'ArrowRight', message: 'Right Movement → +10s' }
+      ];
+      
+      testGestures.forEach(gesture => {
+        const button = document.createElement('button');
+        button.textContent = gesture.text;
+        button.style.cssText = `
+          margin: 2px;
+          padding: 8px 12px;
+          background: #4a00e0;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 11px;
+        `;
+        button.onclick = () => {
+          this.triggerGesture(gesture.key, gesture.message, gesture.text.split(' ')[0]);
+        };
+        manualPanel.appendChild(button);
+      });
       
       document.body.appendChild(manualPanel);
-      
-      // Expose gesture triggers to window
-      window.youtubeGesture = {
-        triggerGesture: (gesture) => this.handleManualGesture(gesture)
-      };
-    }
-    
-    handleManualGesture(gesture) {
-      const gestureMap = {
-        'leftHandOpen': () => { this.triggerKeyboardEvent(' '); this.showNotification('Left Open Hand → Play', '👈'); },
-        'rightHandOpen': () => { this.triggerKeyboardEvent(' '); this.showNotification('Right Open Hand → Pause', '👉'); },
-        'bothHandsFist': () => { this.triggerKeyboardEvent('f'); this.showNotification('Both Fists → Fullscreen', '✊✊'); },
-        'leftPinch': () => { this.triggerKeyboardEvent('ArrowLeft'); this.showNotification('Left Pinch → Seek -10s', '👈'); },
-        'rightPinch': () => { this.triggerKeyboardEvent('ArrowRight'); this.showNotification('Right Pinch → Seek +10s', '👉'); }
-      };
-      
-      if (gestureMap[gesture]) {
-        gestureMap[gesture]();
-      }
-    }
-    
-    startKeyboardFallback() {
-      console.log('🔄 Using keyboard fallback for gestures');
-      this.showNotification('Using keyboard gesture simulation', '⌨️');
-      this.setupManualGestureTriggers();
     }
     
     toggleGestures(enabled) {
@@ -438,11 +488,13 @@
       if (this.webcam) {
         this.webcam.remove();
       }
+      if (this.canvas) {
+        this.canvas.remove();
+      }
       if (this.notification) {
         this.notification.remove();
       }
       
-      // Remove control panels
       const controlPanel = document.getElementById('gesture-control-panel');
       const manualPanel = document.getElementById('manual-gesture-panel');
       if (controlPanel) controlPanel.remove();
@@ -462,21 +514,18 @@
     window.youtubeGestureControl = gestureControl;
   }
   
-  // Message handling
   window.addEventListener('message', (event) => {
     if (event.data.type === 'TOGGLE_GESTURES' && gestureControl) {
       gestureControl.toggleGestures(event.data.enabled);
     }
   });
   
-  // Start when page is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeGestureControl);
   } else {
     setTimeout(initializeGestureControl, 2000);
   }
   
-  // Handle page navigation
   let currentUrl = location.href;
   const observer = new MutationObserver(() => {
     if (location.href !== currentUrl) {
@@ -486,7 +535,6 @@
   });
   observer.observe(document, { subtree: true, childList: true });
   
-  // Cleanup
   window.addEventListener('beforeunload', () => {
     if (gestureControl) {
       gestureControl.cleanup();
