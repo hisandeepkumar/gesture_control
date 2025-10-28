@@ -1,31 +1,19 @@
-// YouTube Gesture Control - Final Fixed Version
+// YouTube Keyboard Gestures - Final Working Version
 (function() {
   'use strict';
   
-  console.log('🎬 YouTube Gesture Control: Loading final version...');
+  console.log('🎬 YouTube Keyboard Gestures: Loading final version...');
   
-  class YouTubeGestureControl {
+  class YouTubeKeyboardGestures {
     constructor() {
       this.GESTURES_ENABLED = true;
       this.youtubeVideo = null;
-      this.mediaStream = null;
-      this.cameraActive = false;
       this.notification = null;
       this.isFullscreen = false;
       
-      // Gesture state variables (EXACT SAME AS ORIGINAL)
-      this.COOLDOWN = 1200;
-      this.lastAct = 0;
-      this.pinch = { 
-        Left: { active: false, start: null, last: null }, 
-        Right: { active: false, start: null, last: null } 
-      };
-      this.tapTs = { Left: 0, Right: 0 };
-      this.DOUBLE_TAP = 600;
-      
-      this.hands = null;
-      this.webcam = null;
-      this.mediaPipeLoaded = false;
+      // Cooldown to prevent multiple rapid actions
+      this.lastActionTime = 0;
+      this.ACTION_COOLDOWN = 300;
       
       this.init();
     }
@@ -33,23 +21,24 @@
     async init() {
       this.createNotification();
       await this.waitForYouTube();
-      await this.startCamera();
-      await this.loadMediaPipeDirectly();
+      this.setupKeyboardGestures();
       
       // Listen for fullscreen changes
       document.addEventListener('fullscreenchange', () => {
         this.isFullscreen = !!document.fullscreenElement;
       });
+      
+      this.showNotification('Keyboard Gestures Ready!', '⌨️');
     }
     
     createNotification() {
       // Remove existing notification
-      const existing = document.getElementById('yt-gesture-notification');
+      const existing = document.getElementById('yt-keyboard-gestures');
       if (existing) existing.remove();
       
       // Create notification element
       this.notification = document.createElement('div');
-      this.notification.id = 'yt-gesture-notification';
+      this.notification.id = 'yt-keyboard-gestures';
       
       // Apply styles directly
       this.notification.style.cssText = `
@@ -80,20 +69,20 @@
       // Create emoji element
       const emoji = document.createElement('span');
       emoji.className = 'gesture-emoji';
-      emoji.textContent = '👆';
+      emoji.textContent = '⌨️';
       emoji.style.fontSize = '16px';
       
       // Create message element
       const message = document.createElement('span');
       message.className = 'gesture-message';
-      message.textContent = 'Gesture Control Ready';
+      message.textContent = 'Keyboard Gestures Ready';
       
       this.notification.appendChild(emoji);
       this.notification.appendChild(message);
       document.body.appendChild(this.notification);
     }
     
-    showNotification(message, icon = '👆') {
+    showNotification(message, icon = '⌨️') {
       if (!this.notification) return;
       
       const messageEl = this.notification.querySelector('.gesture-message');
@@ -128,193 +117,123 @@
       });
     }
     
-    async startCamera() {
-      try {
-        console.log('📷 Starting camera for gesture detection...');
-        this.showNotification('Starting camera...', '📷');
+    setupKeyboardGestures() {
+      console.log('⌨️ Setting up keyboard gestures...');
+      
+      document.addEventListener('keydown', (e) => {
+        if (!this.GESTURES_ENABLED || !this.youtubeVideo) return;
         
-        // Get camera access
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 30 }
-          },
-          audio: false
-        });
+        const now = Date.now();
+        if (now - this.lastActionTime < this.ACTION_COOLDOWN) return;
         
-        // Create hidden webcam element
-        this.webcam = document.createElement('video');
-        this.webcam.style.cssText = `
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          opacity: 0;
-          left: -100px;
-          top: -100px;
-          pointer-events: none;
-        `;
-        this.webcam.autoplay = true;
-        this.webcam.playsInline = true;
-        this.webcam.muted = true;
-        this.webcam.srcObject = this.mediaStream;
-        
-        document.body.appendChild(this.webcam);
-        
-        // Wait for webcam to be ready
-        await new Promise((resolve) => {
-          this.webcam.onloadedmetadata = () => {
-            this.webcam.play().then(resolve);
-          };
-        });
-        
-        this.cameraActive = true;
-        console.log('✅ Camera started successfully');
-        this.showNotification('Camera Active!', '✅');
-        
-      } catch (error) {
-        console.error('❌ Camera access failed:', error);
-        this.showNotification('Camera access required for gestures', '❌');
-        this.fallbackToKeyboard();
-      }
-    }
-    
-    async loadMediaPipeDirectly() {
-      try {
-        console.log('📦 Loading MediaPipe directly...');
-        
-        // Check if MediaPipe is already available
-        if (window.Hands && window.Camera && window.drawConnectors) {
-          console.log('✅ MediaPipe already loaded');
-          this.mediaPipeLoaded = true;
-          this.initMediaPipe();
-          return;
+        // Handle our gesture keys
+        switch(e.key) {
+          case ' ':
+            // Space = Play/Pause (Open Hand Gesture)
+            e.preventDefault();
+            e.stopPropagation();
+            this.togglePlayPause();
+            this.lastActionTime = now;
+            break;
+            
+          case 'ArrowLeft':
+            // Left Arrow = Seek Backward (Left Pinch Gesture)
+            e.preventDefault();
+            e.stopPropagation();
+            this.seekVideo(-10);
+            this.showNotification('Left Gesture ← -10s', '⏪');
+            this.lastActionTime = now;
+            break;
+            
+          case 'ArrowRight':
+            // Right Arrow = Seek Forward (Right Pinch Gesture)
+            e.preventDefault();
+            e.stopPropagation();
+            this.seekVideo(10);
+            this.showNotification('Right Gesture → +10s', '⏩');
+            this.lastActionTime = now;
+            break;
+            
+          case 'ArrowUp':
+            // Up Arrow = Volume Up (Right Pinch Up)
+            e.preventDefault();
+            e.stopPropagation();
+            this.adjustVolume(0.1);
+            this.showNotification('Up Gesture ↑ Volume +', '🔊');
+            this.lastActionTime = now;
+            break;
+            
+          case 'ArrowDown':
+            // Down Arrow = Volume Down (Right Pinch Down)
+            e.preventDefault();
+            e.stopPropagation();
+            this.adjustVolume(-0.1);
+            this.showNotification('Down Gesture ↓ Volume -', '🔈');
+            this.lastActionTime = now;
+            break;
+            
+          case 'f':
+          case 'F':
+            // F Key = Toggle Fullscreen (Both Fists Gesture)
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleFullscreen();
+            this.lastActionTime = now;
+            break;
+            
+          case 'm':
+          case 'M':
+            // M Key = Toggle Mute
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleMute();
+            this.lastActionTime = now;
+            break;
         }
-        
-        // Load MediaPipe using direct script injection
-        const loadScript = (url) => {
-          return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        };
-        
-        // Try to load MediaPipe scripts
-        try {
-          await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js');
-          await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
-          await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js');
-          
-          console.log('✅ MediaPipe scripts loaded successfully');
-          this.mediaPipeLoaded = true;
-          this.initMediaPipe();
-          
-        } catch (error) {
-          console.warn('⚠️ MediaPipe loading failed, using fallback:', error);
-          this.showNotification('Using basic gesture detection', '⚡');
-          this.startBasicGestureDetection();
-        }
-        
-      } catch (error) {
-        console.error('MediaPipe initialization error:', error);
-        this.startBasicGestureDetection();
-      }
-    }
-    
-    initMediaPipe() {
-      if (!window.Hands) {
-        console.warn('MediaPipe Hands not available');
-        this.startBasicGestureDetection();
-        return;
-      }
+      });
       
-      try {
-        // Initialize MediaPipe Hands
-        this.hands = new window.Hands({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-        
-        this.hands.setOptions({
-          maxNumHands: 2,
-          modelComplexity: 1,
-          minDetectionConfidence: 0.6,
-          minTrackingConfidence: 0.6
-        });
-        
-        this.hands.onResults(this.onResults.bind(this));
-        
-        // Start processing frames
-        this.processCameraFrames();
-        
-        this.showNotification('Advanced Gestures Active!', '🎯');
-        console.log('✅ MediaPipe initialized successfully');
-        
-      } catch (error) {
-        console.error('MediaPipe setup error:', error);
-        this.startBasicGestureDetection();
+      console.log('✅ Keyboard gestures setup complete');
+    }
+    
+    // === GESTURE ACTIONS ===
+    
+    togglePlayPause() {
+      if (this.youtubeVideo.paused) {
+        this.youtubeVideo.play();
+        this.showNotification('Play Gesture (Space)', '▶️');
+      } else {
+        this.youtubeVideo.pause();
+        this.showNotification('Pause Gesture (Space)', '⏸️');
       }
     }
     
-    async processCameraFrames() {
-      if (!this.cameraActive || !this.GESTURES_ENABLED || !this.hands) return;
+    seekVideo(seconds) {
+      this.youtubeVideo.currentTime += seconds;
       
-      try {
-        await this.hands.send({ image: this.webcam });
-        requestAnimationFrame(() => this.processCameraFrames());
-      } catch (error) {
-        console.error('Frame processing error:', error);
-        setTimeout(() => this.processCameraFrames(), 1000);
-      }
-    }
-    
-    startBasicGestureDetection() {
-      console.log('🔄 Starting basic gesture detection');
-      this.showNotification('Basic Gestures Active', '👋');
+      // Show remaining time
+      const remaining = Math.floor(this.youtubeVideo.duration - this.youtubeVideo.currentTime);
+      const minutes = Math.floor(remaining / 60);
+      const secs = remaining % 60;
       
-      // Use face detection or simple motion detection as fallback
-      this.setupKeyboardGestures();
+      this.showNotification(
+        `${seconds > 0 ? '+' : ''}${seconds}s (${minutes}:${secs.toString().padStart(2, '0')} left)`,
+        seconds > 0 ? '⏩' : '⏪'
+      );
     }
     
-    // === GESTURE RECOGNITION FUNCTIONS (EXACT SAME AS ORIGINAL) ===
-    
-    cooldown() {
-      return Date.now() - this.lastAct < this.COOLDOWN;
+    adjustVolume(change) {
+      this.youtubeVideo.volume = Math.max(0, Math.min(1, this.youtubeVideo.volume + change));
+      this.showNotification(`Volume ${Math.round(this.youtubeVideo.volume * 100)}%`, '🔊');
     }
     
-    fingerState(lm, hand) {
-      const tips = [8, 12, 16, 20], pips = [6, 10, 14, 18];
-      let ext = 0;
-      for (let i = 0; i < 4; i++) {
-        if (lm[tips[i]].y < lm[pips[i]].y - 0.02) ext++;
-      }
-      const thumbExt = hand === 'Right' ? 
-        lm[4].x > lm[3].x + 0.02 : lm[4].x < lm[3].x - 0.02;
-      return { ext, thumbExt };
+    toggleMute() {
+      this.youtubeVideo.muted = !this.youtubeVideo.muted;
+      this.showNotification(
+        this.youtubeVideo.muted ? 'Muted 🔇' : 'Unmuted 🔊',
+        this.youtubeVideo.muted ? '🔇' : '🔊'
+      );
     }
     
-    discrete(lm, hand) {
-      const s = this.fingerState(lm, hand);
-      if (s.ext === 0 && !s.thumbExt) return 'fist';
-      if (s.ext === 4 && s.thumbExt) return 'openHand';
-      return null;
-    }
-    
-    pinchDist(lm, w, h) {
-      const dx = (lm[4].x - lm[8].x) * w;
-      const dy = (lm[4].y - lm[8].y) * h;
-      const dist = Math.hypot(dx, dy);
-      const cx = (lm[4].x + lm[8].x) / 2 * w;
-      return { dist, cx };
-    }
-    
-    mirrorHand(hand) {
-      return hand === 'Left' ? 'Right' : 'Left';
-    }
-    
-    // === FULLSCREEN FUNCTIONALITY ===
     toggleFullscreen() {
       if (!this.isFullscreen) {
         // Enter fullscreen
@@ -326,7 +245,7 @@
         } else if (videoContainer.mozRequestFullScreen) {
           videoContainer.mozRequestFullScreen();
         }
-        this.showNotification('Fullscreen', '🖥️');
+        this.showNotification('Fullscreen Gesture (F)', '🖥️');
       } else {
         // Exit fullscreen
         if (document.exitFullscreen) {
@@ -336,223 +255,78 @@
         } else if (document.mozCancelFullScreen) {
           document.mozCancelFullScreen();
         }
-        this.showNotification('Normal Screen', '📱');
+        this.showNotification('Normal Screen (F)', '📱');
       }
     }
     
-    // === MAIN GESTURE PROCESSING ===
-    onResults(res) {
-      if (!this.webcam || !this.webcam.videoWidth || !this.youtubeVideo || !this.GESTURES_ENABLED) return;
-      
-      if (!res.multiHandLandmarks || res.multiHandLandmarks.length === 0) {
-        for (const k of ['Left', 'Right']) {
-          if (this.pinch[k].active) {
-            this.pinch[k].active = false;
-            this.pinch[k].start = null;
-          }
-        }
-        return;
-      }
-      
-      // Mirror landmarks
-      const mirroredLandmarks = res.multiHandLandmarks.map(lm =>
-        lm.map(p => ({ x: 1 - p.x, y: p.y, z: p.z }))
-      );
-      
-      const handsInfo = [];
-      for (let i = 0; i < mirroredLandmarks.length; i++) {
-        const lm = mirroredLandmarks[i];
-        const origHand = (res.multiHandedness?.[i]?.label) ?? 'Right';
-        const mirroredHand = this.mirrorHand(origHand);
-        const disc = this.discrete(lm, mirroredHand);
-        handsInfo.push({ hand: mirroredHand, disc, lm });
-      }
-      
-      const anyPinch = this.pinch.Left.active || this.pinch.Right.active;
-      
-      // === 1. BOTH FISTS → TOGGLE FULLSCREEN ===
-      if (handsInfo.length === 2 && !anyPinch && !this.cooldown()) {
-        const L = handsInfo.find(h => h.hand === 'Left');
-        const R = handsInfo.find(h => h.hand === 'Right');
-        if (L && R && L.disc === 'fist' && R.disc === 'fist') {
-          this.lastAct = Date.now();
-          this.toggleFullscreen();
-          return;
-        }
-      }
-      
-      // === 2. PLAY / PAUSE ===
-      if (handsInfo.length === 1 && !anyPinch && !this.cooldown()) {
-        const h = handsInfo[0];
-        if (h.disc === 'openHand') {
-          this.lastAct = Date.now();
-          if (h.hand === 'Left') {
-            this.youtubeVideo.play();
-            this.showNotification('Left Open → Play', '▶️');
-          } else {
-            this.youtubeVideo.pause();
-            this.showNotification('Right Open → Pause', '⏸️');
-          }
-          return;
-        }
-      }
-      
-      if (!this.GESTURES_ENABLED) return;
-      
-      // === 3. PINCH → VOLUME & SEEK ===
-      for (let i = 0; i < mirroredLandmarks.length; i++) {
-        const lm = mirroredLandmarks[i];
-        const origHand = (res.multiHandedness?.[i]?.label) ?? 'Right';
-        const hand = this.mirrorHand(origHand);
-        const disc = this.discrete(lm, hand);
-        
-        if (disc === 'fist') continue;
-        
-        const p = this.pinchDist(lm, this.webcam.videoWidth, this.webcam.videoHeight);
-        const TH = 50;
-        const st = this.pinch[hand];
-        
-        if (p.dist < TH) {
-          if (!st.active) {
-            st.active = true;
-            st.start = {
-              cx: p.cx,
-              t: Date.now(),
-              time: this.youtubeVideo.currentTime,
-              vol: this.youtubeVideo.volume
-            };
-            st.last = { cx: p.cx };
-          } else {
-            const elapsed = Date.now() - st.start.t;
-            if (elapsed > 300) {
-              const dx = p.cx - st.start.cx;
-              if (hand === 'Right') {
-                const volDelta = dx * 0.002;
-                const newVol = Math.max(0, Math.min(1, st.start.vol + volDelta));
-                this.youtubeVideo.volume = newVol;
-                this.showNotification(`Volume ${Math.round(newVol * 100)}%`, '🔊');
-              } else {
-                const seekSec = dx * 0.08;
-                const target = Math.max(0, Math.min(
-                  this.youtubeVideo.duration, 
-                  st.start.time + seekSec
-                ));
-                this.youtubeVideo.currentTime = target;
-                this.showNotification(`Seek ${Math.round(target)}s`, '⏩');
-              }
-            }
-            st.last = { cx: p.cx };
-          }
-        } else {
-          if (st.active) {
-            const now = Date.now();
-            const dur = now - st.start.t;
-            if (dur < 300) {
-              if (now - this.tapTs[hand] < this.DOUBLE_TAP && !this.cooldown()) {
-                this.lastAct = now;
-                if (hand === 'Left') {
-                  this.youtubeVideo.currentTime = Math.max(0, 
-                    this.youtubeVideo.currentTime - 10
-                  );
-                  this.showNotification('-10 Seconds', '⏪');
-                } else {
-                  this.youtubeVideo.currentTime = Math.min(this.youtubeVideo.duration,
-                    this.youtubeVideo.currentTime + 10
-                  );
-                  this.showNotification('+10 Seconds', '⏩');
-                }
-                this.tapTs[hand] = 0;
-              } else {
-                this.tapTs[hand] = now;
-              }
-            }
-            st.active = false;
-            st.start = null;
-            st.last = null;
-          }
-        }
-      }
-    }
+    // === ADVANCED GESTURES USING KEY COMBINATIONS ===
     
-    setupKeyboardGestures() {
+    setupAdvancedGestures() {
+      let doubleTapTimeout;
+      let lastKeyPress = {};
+      
       document.addEventListener('keydown', (e) => {
-        if (!this.GESTURES_ENABLED || !this.youtubeVideo) return;
+        if (!this.GESTURES_ENABLED) return;
         
-        switch(e.key) {
-          case ' ':
-            e.preventDefault();
-            this.togglePlayPause();
-            break;
-          case 'ArrowLeft':
-            this.seek(-10);
-            break;
-          case 'ArrowRight':
-            this.seek(10);
-            break;
-          case 'ArrowUp':
-            this.adjustVolume(0.1);
-            break;
-          case 'ArrowDown':
-            this.adjustVolume(-0.1);
-            break;
-          case 'f':
-            e.preventDefault();
-            this.toggleFullscreen();
-            break;
+        const key = e.key;
+        const now = Date.now();
+        
+        // Double tap detection (rapid same key press)
+        if (lastKeyPress[key] && now - lastKeyPress[key] < 300) {
+          // Double tap detected
+          clearTimeout(doubleTapTimeout);
+          this.handleDoubleTap(key);
+        } else {
+          lastKeyPress[key] = now;
+          doubleTapTimeout = setTimeout(() => {
+            lastKeyPress[key] = 0;
+          }, 300);
+        }
+        
+        // Key combinations
+        if (e.shiftKey) {
+          switch(key) {
+            case 'ArrowLeft':
+              e.preventDefault();
+              this.seekVideo(-30);
+              this.showNotification('Shift + Left → -30s', '⏪⏪');
+              break;
+            case 'ArrowRight':
+              e.preventDefault();
+              this.seekVideo(30);
+              this.showNotification('Shift + Right → +30s', '⏩⏩');
+              break;
+          }
         }
       });
     }
     
-    togglePlayPause() {
-      if (!this.youtubeVideo) return;
-      
-      if (this.youtubeVideo.paused) {
-        this.youtubeVideo.play();
-        this.showNotification('Play', '▶️');
-      } else {
-        this.youtubeVideo.pause();
-        this.showNotification('Pause', '⏸️');
+    handleDoubleTap(key) {
+      switch(key) {
+        case 'ArrowLeft':
+          this.showNotification('Double Left Tap → -15s', '👈👈');
+          this.seekVideo(-15);
+          break;
+        case 'ArrowRight':
+          this.showNotification('Double Right Tap → +15s', '👉👉');
+          this.seekVideo(15);
+          break;
+        case ' ':
+          this.showNotification('Double Tap → Mini Player', '🎬');
+          // Mini player toggle could be implemented here
+          break;
       }
-    }
-    
-    seek(seconds) {
-      if (!this.youtubeVideo) return;
-      
-      this.youtubeVideo.currentTime += seconds;
-      this.showNotification(
-        seconds > 0 ? `+${seconds}s` : `${seconds}s`,
-        seconds > 0 ? '⏩' : '⏪'
-      );
-    }
-    
-    adjustVolume(change) {
-      if (!this.youtubeVideo) return;
-      
-      this.youtubeVideo.volume = Math.max(0, Math.min(1, this.youtubeVideo.volume + change));
-      this.showNotification(`Volume ${Math.round(this.youtubeVideo.volume * 100)}%`, '🔊');
-    }
-    
-    fallbackToKeyboard() {
-      console.log('🔄 Using keyboard fallback controls');
-      this.showNotification('Using keyboard controls (Space, Arrows, F)', '⌨️');
-      this.setupKeyboardGestures();
     }
     
     toggleGestures(enabled) {
       this.GESTURES_ENABLED = enabled;
       this.showNotification(
-        enabled ? 'Gestures Enabled' : 'Gestures Disabled',
+        enabled ? 'Keyboard Gestures Enabled' : 'Keyboard Gestures Disabled',
         enabled ? '✅' : '❌'
       );
     }
     
     cleanup() {
-      if (this.mediaStream) {
-        this.mediaStream.getTracks().forEach(track => track.stop());
-      }
-      if (this.webcam) {
-        this.webcam.remove();
-      }
       if (this.notification) {
         this.notification.remove();
       }
@@ -567,7 +341,7 @@
       gestureControl.cleanup();
     }
     
-    gestureControl = new YouTubeGestureControl();
+    gestureControl = new YouTubeKeyboardGestures();
     window.youtubeGestureControl = gestureControl;
   }
   
