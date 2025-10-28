@@ -3,4 +3,9 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('YouTube Gesture Control extension installed');
 });
 
-// Set up context menu or other background features if needed
+// Handle extension icon click to refresh the page
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.url.includes('youtube.com')) {
+    chrome.tabs.reload(tab.id);
+  }
+});
