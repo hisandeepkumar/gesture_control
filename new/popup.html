@@ -57,20 +57,11 @@
       align-items: center;
       gap: 8px;
     }
-    .key-combo {
-      display: inline-block;
-      background: rgba(255,255,255,0.2);
-      padding: 2px 6px;
-      border-radius: 4px;
-      margin: 0 2px;
-      font-family: monospace;
+    .camera-info {
       font-size: 11px;
-    }
-    .success-note {
-      font-size: 11px;
-      background: rgba(76, 175, 80, 0.2);
-      padding: 8px;
-      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      padding: 10px;
+      border-radius: 8px;
       margin-top: 10px;
     }
   </style>
@@ -78,31 +69,29 @@
 <body>
   <div class="container">
     <div class="header">
-      <span>⌨️</span>
-      <h3 style="margin:0">YouTube Keyboard Gestures</h3>
+      <span>📷</span>
+      <h3 style="margin:0">YouTube Camera Gestures</h3>
     </div>
     
     <div class="status">
-      Gestures: <span id="status-text">ON</span>
+      Camera Gestures: <span id="status-text">ON</span>
     </div>
     
     <button id="toggle-btn" class="toggle">Disable Gestures</button>
     
     <div class="gesture-list">
-      <div><span class="key-combo">Space</span> → Play/Pause</div>
-      <div><span class="key-combo">←</span> → Seek -10s</div>
-      <div><span class="key-combo">→</span> → Seek +10s</div>
-      <div><span class="key-combo">↑</span> → Volume Up</div>
-      <div><span class="key-combo">↓</span> → Volume Down</div>
-      <div><span class="key-combo">F</span> → Fullscreen Toggle</div>
-      <div><span class="key-combo">M</span> → Mute/Unmute</div>
-      <div><span class="key-combo">Shift + ←</span> → -30s</div>
-      <div><span class="key-combo">Shift + →</span> → +30s</div>
+      <div>👈 Left Open Hand → Play Video</div>
+      <div>👉 Right Open Hand → Pause Video</div>
+      <div>✊✊ Both Fists → Toggle Fullscreen</div>
+      <div>👈 Pinch Gesture → Seek -10s</div>
+      <div>👉 Pinch Gesture → Seek +10s</div>
+      <div>👆 Hand Up → Volume Up</div>
+      <div>👇 Hand Down → Volume Down</div>
     </div>
     
-    <div class="success-note">
-      ✅ <strong>100% Working!</strong><br>
-      No camera required • No errors • Instant response
+    <div class="camera-info">
+      📹 <strong>Camera Required</strong><br>
+      Show gestures to the camera to control YouTube
     </div>
   </div>
   
