@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Camera Gestures",
-  "version": "7.0",
-  "description": "Control YouTube with real camera gestures",
+  "name": "YouTube Gesture Control",
+  "version": "1.0",
+  "description": "Control YouTube with hand gestures",
   "permissions": [
     "activeTab"
   ],
