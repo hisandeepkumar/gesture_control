@@ -7,6 +7,8 @@
       this.youtubeVideo = null;
       this.notificationTimeout = null;
       this.isFullscreen = false;
+      this.cameraStarted = false;
+      this.webcamStream = null;
       
       this.initGestureState();
       this.setupYouTube();
@@ -17,7 +19,6 @@
       this.findYouTubeVideo();
       this.setupMediaPipe();
       
-      // Watch for YouTube navigation (SPA)
       this.observer = new MutationObserver(() => {
         this.findYouTubeVideo();
       });
@@ -27,18 +28,15 @@
         subtree: true
       });
       
-      // Listen for fullscreen changes
       document.addEventListener('fullscreenchange', () => {
         this.isFullscreen = !!document.fullscreenElement;
       });
     }
     
     createNotificationElement() {
-      // Remove existing notification
       const existing = document.getElementById('yt-gesture-notification');
       if (existing) existing.remove();
       
-      // Create YouTube-styled notification
       this.notification = document.createElement('div');
       this.notification.id = 'yt-gesture-notification';
       this.notification.innerHTML = `
@@ -105,25 +103,21 @@
       
       this.notification.classList.add('show');
       
-      // Clear existing timeout
       if (this.notificationTimeout) {
         clearTimeout(this.notificationTimeout);
       }
       
-      // Hide after 1.5 seconds (shorter for YouTube)
       this.notificationTimeout = setTimeout(() => {
         this.notification.classList.remove('show');
       }, 1500);
     }
     
     findYouTubeVideo() {
-      // Find YouTube video element
       const video = document.querySelector('video');
       if (video && video !== this.youtubeVideo) {
         this.youtubeVideo = video;
         console.log('YouTube Gesture Control: Video element found');
         
-        // Add event listeners for YouTube-specific features
         this.setupYouTubeEvents();
       }
     }
@@ -131,7 +125,6 @@
     setupYouTubeEvents() {
       if (!this.youtubeVideo) return;
       
-      // Listen for YouTube player state changes
       this.youtubeVideo.addEventListener('play', () => {
         if (this.GESTURES_ENABLED) {
           this.showNotification('Playing', '▶️');
@@ -145,39 +138,12 @@
       });
     }
     
-    toggleGestures(enabled) {
-      this.GESTURES_ENABLED = enabled;
-      
-      this.showNotification(
-        enabled ? 'Gestures Enabled' : 'Gestures Disabled',
-        enabled ? '✅' : '❌'
-      );
-      
-      // Send status to popup
-      window.postMessage({
-        type: 'GESTURE_STATUS',
-        enabled: this.GESTURES_ENABLED
-      }, '*');
-    }
-    
-    // YouTube-specific fullscreen toggle
-    toggleFullscreen() {
-      if (this.isFullscreen) {
-        document.exitFullscreen?.();
-      } else {
-        document.documentElement.requestFullscreen?.();
-      }
-    }
-    
-    // MediaPipe setup
     async setupMediaPipe() {
       try {
         // Load MediaPipe scripts
         await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js');
         await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
-        
-        // Create hidden camera elements
-        this.createCameraElements();
+        await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js');
         
         // Initialize MediaPipe Hands
         this.hands = new window.Hands({
@@ -193,21 +159,72 @@
         
         this.hands.onResults(this.onResults.bind(this));
         
-        // Start camera
-        this.camera = new window.Camera(this.webcam, {
-          onFrame: async () => {
-            await this.hands.send({image: this.webcam});
-          },
-          width: 320,
-          height: 240
-        });
-        
-        await this.camera.start();
-        this.showNotification('Gesture Control Active', '👋');
+        // Start webcam with proper error handling
+        await this.startWebcam();
         
       } catch (err) {
-        console.error('YouTube Gesture Control: Camera error', err);
-        this.showNotification('Camera Access Required', '📷');
+        console.error('YouTube Gesture Control: Setup error', err);
+        this.showNotification('Camera Setup Failed', '❌');
+      }
+    }
+    
+    async startWebcam() {
+      try {
+        // Create webcam element
+        this.webcam = document.createElement('video');
+        this.webcam.id = 'yt-gesture-webcam';
+        this.webcam.style.cssText = 'width:1px;height:1px;opacity:0;position:absolute;pointer-events:none;left:-100px;top:-100px';
+        this.webcam.autoplay = true;
+        this.webcam.playsInline = true;
+        this.webcam.muted = true;
+        
+        document.body.appendChild(this.webcam);
+        
+        // Get webcam stream
+        this.webcamStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 30 }
+          },
+          audio: false
+        });
+        
+        this.webcam.srcObject = this.webcamStream;
+        
+        // Wait for webcam to be ready
+        await new Promise((resolve) => {
+          this.webcam.onloadedmetadata = () => {
+            this.webcam.play().then(resolve);
+          };
+        });
+        
+        this.cameraStarted = true;
+        this.showNotification('Camera Active - Gestures Ready', '📷');
+        
+        console.log('YouTube Gesture Control: Webcam started successfully');
+        
+        // Start processing frames
+        this.processFrames();
+        
+      } catch (err) {
+        console.error('YouTube Gesture Control: Webcam error', err);
+        this.showNotification('Camera Access Denied', '❌');
+        this.sendWebcamStatus('error', err.message);
+      }
+    }
+    
+    async processFrames() {
+      if (!this.cameraStarted || !this.GESTURES_ENABLED) return;
+      
+      try {
+        await this.hands.send({image: this.webcam});
+        // Continue processing
+        requestAnimationFrame(() => this.processFrames());
+      } catch (err) {
+        console.error('YouTube Gesture Control: Frame processing error', err);
+        // Retry after a delay
+        setTimeout(() => this.processFrames(), 1000);
       }
     }
     
@@ -221,27 +238,8 @@
       });
     }
     
-    createCameraElements() {
-      // Create completely hidden webcam element
-      this.webcam = document.createElement('video');
-      this.webcam.id = 'yt-gesture-webcam';
-      this.webcam.style.cssText = 'width:1px;height:1px;opacity:0;position:absolute;pointer-events:none;left:-100px;top:-100px';
-      this.webcam.autoplay = true;
-      this.webcam.playsInline = true;
-      
-      // Create hidden canvas for processing
-      this.canvas = document.createElement('canvas');
-      this.canvas.style.cssText = 'display:none';
-      
-      document.body.appendChild(this.webcam);
-      document.body.appendChild(this.canvas);
-      
-      this.ctx = this.canvas.getContext('2d');
-    }
-    
-    // Gesture state variables
     initGestureState() {
-      this.COOLDOWN = 1000; // Shorter cooldown for YouTube
+      this.COOLDOWN = 1000;
       this.lastAct = 0;
       this.pinch = {
         Left: {active: false, start: null, last: null},
@@ -255,7 +253,6 @@
       return Date.now() - this.lastAct < this.COOLDOWN;
     }
     
-    // Gesture recognition functions
     fingerState(lm, hand) {
       const tips = [8, 12, 16, 20], pips = [6, 10, 14, 18];
       let ext = 0;
@@ -286,20 +283,16 @@
       return hand === 'Left' ? 'Right' : 'Left';
     }
     
-    // Process MediaPipe results for YouTube
+    sendWebcamStatus(status, error = null) {
+      window.postMessage({
+        type: 'WEBCAM_STATUS',
+        status: status,
+        error: error
+      }, '*');
+    }
+    
     onResults(res) {
-      if (!this.webcam.videoWidth || !this.youtubeVideo || !this.GESTURES_ENABLED) return;
-      
-      this.canvas.width = this.webcam.videoWidth;
-      this.canvas.height = this.webcam.videoHeight;
-      this.ctx.save();
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      
-      // Mirror and process
-      this.ctx.scale(-1, 1);
-      this.ctx.translate(-this.canvas.width, 0);
-      this.ctx.drawImage(res.image, 0, 0, this.canvas.width, this.canvas.height);
-      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (!this.webcam || !this.webcam.videoWidth || !this.youtubeVideo || !this.GESTURES_ENABLED) return;
       
       if (!res.multiHandLandmarks || res.multiHandLandmarks.length === 0) {
         for (const k of ['Left', 'Right']) {
@@ -308,7 +301,6 @@
             this.pinch[k].start = null;
           }
         }
-        this.ctx.restore();
         return;
       }
       
@@ -342,7 +334,6 @@
             this.youtubeVideo.pause();
             this.showNotification('Both Fists → Pause', '⏸️');
           }
-          this.ctx.restore();
           return;
         }
       }
@@ -359,7 +350,6 @@
             this.youtubeVideo.pause();
             this.showNotification('Right Open → Pause', '⏸️');
           }
-          this.ctx.restore();
           return;
         }
       }
@@ -371,10 +361,9 @@
         const hand = this.mirrorHand(origHand);
         const disc = this.discrete(lm, hand);
         
-        // Block pinch in fist
         if (disc === 'fist') continue;
         
-        const p = this.pinchDist(lm, this.canvas.width, this.canvas.height);
+        const p = this.pinchDist(lm, this.webcam.videoWidth, this.webcam.videoHeight);
         const TH = 50;
         const st = this.pinch[hand];
         
@@ -438,36 +427,81 @@
           }
         }
       }
+    }
+    
+    toggleGestures(enabled) {
+      this.GESTURES_ENABLED = enabled;
       
-      this.ctx.restore();
+      this.showNotification(
+        enabled ? 'Gestures Enabled' : 'Gestures Disabled',
+        enabled ? '✅' : '❌'
+      );
+      
+      if (enabled && !this.cameraStarted) {
+        this.startWebcam();
+      }
+      
+      window.postMessage({
+        type: 'GESTURE_STATUS',
+        enabled: this.GESTURES_ENABLED
+      }, '*');
+    }
+    
+    cleanup() {
+      if (this.webcamStream) {
+        this.webcamStream.getTracks().forEach(track => track.stop());
+      }
+      if (this.observer) {
+        this.observer.disconnect();
+      }
     }
   }
   
-  // Initialize when YouTube is ready
+  // Initialize gesture control
+  let gestureControl = null;
+  
   function initializeGestureControl() {
-    if (window.youtubeGestureControl) return;
+    if (gestureControl) {
+      gestureControl.cleanup();
+    }
     
-    window.youtubeGestureControl = new YouTubeGestureControl();
+    gestureControl = new YouTubeGestureControl();
+    window.youtubeGestureControl = gestureControl;
+    
     console.log('YouTube Gesture Control: Initialized');
-    
-    // Listen for toggle messages
-    window.addEventListener('message', (event) => {
-      if (event.data.type === 'TOGGLE_GESTURES') {
-        window.youtubeGestureControl.toggleGestures(event.data.enabled);
-      }
-      if (event.data.type === 'GET_STATUS') {
-        window.postMessage({
-          type: 'GESTURE_STATUS',
-          enabled: window.youtubeGestureControl.GESTURES_ENABLED
-        }, '*');
-      }
-    });
   }
   
-  // Wait for YouTube to fully load
+  // Listen for messages
+  window.addEventListener('message', (event) => {
+    if (!gestureControl) return;
+    
+    if (event.data.type === 'TOGGLE_GESTURES') {
+      gestureControl.toggleGestures(event.data.enabled);
+    }
+    if (event.data.type === 'GET_STATUS') {
+      window.postMessage({
+        type: 'GESTURE_STATUS',
+        enabled: gestureControl.GESTURES_ENABLED
+      }, '*');
+    }
+    if (event.data.type === 'CHECK_WEBCAM') {
+      gestureControl.sendWebcamStatus(
+        gestureControl.cameraStarted ? 'active' : 'inactive'
+      );
+    }
+  });
+  
+  // Initialize when ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeGestureControl);
   } else {
     setTimeout(initializeGestureControl, 1000);
   }
+  
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    if (gestureControl) {
+      gestureControl.cleanup();
+    }
+  });
 })();
