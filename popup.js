@@ -32,8 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   function updateUI() {
     statusText.textContent = gesturesEnabled ? 'ON' : 'OFF';
-    statusText.style.color = gesturesEnabled ? '#0f0' : '#f00';
-    toggleBtn.textContent = gesturesEnabled ? 'Disable' : 'Enable';
-    toggleBtn.className = gesturesEnabled ? 'toggle' : 'toggle off';
+    statusText.style.color = gesturesEnabled ? '#90EE90' : '#FF6B6B';
+    toggleBtn.textContent = gesturesEnabled ? 'Disable Gestures' : 'Enable Gestures';
   }
+  
+  // Initialize UI
+  updateUI();
 });
