@@ -1,17 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
   const statusText = document.getElementById('status-text');
   const toggleBtn = document.getElementById('toggle-btn');
+  const webcamBtn = document.getElementById('webcam-btn');
+  const webcamStatus = document.getElementById('webcam-status');
   let gesturesEnabled = true;
   
   // Get current status from active tab
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
     if (tabs[0]?.url?.includes('youtube.com')) {
       chrome.tabs.sendMessage(tabs[0].id, {action: 'getStatus'});
+      checkWebcamStatus();
     } else {
       statusText.textContent = 'YouTube Only';
       statusText.style.color = '#FF6B6B';
       toggleBtn.disabled = true;
+      webcamBtn.disabled = true;
       toggleBtn.textContent = 'Open YouTube';
+      webcamStatus.innerHTML = '📷 Webcam: Open YouTube first';
     }
   });
   
@@ -20,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (request.action === 'statusUpdate') {
       gesturesEnabled = request.enabled;
       updateUI();
+    }
+    if (request.action === 'webcamStatus') {
+      updateWebcamStatus(request.status, request.error);
     }
   });
   
@@ -42,6 +50,46 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI();
   });
   
+  // Webcam check button
+  webcamBtn.addEventListener('click', () => {
+    checkWebcamStatus();
+  });
+  
+  function checkWebcamStatus() {
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      if (tabs[0]?.url?.includes('youtube.com')) {
+        webcamStatus.innerHTML = '📷 Webcam: Checking...';
+        webcamStatus.className = 'webcam-status inactive';
+        chrome.tabs.sendMessage(tabs[0].id, {action: 'checkWebcam'});
+      }
+    });
+  }
+  
+  function updateWebcamStatus(status, error = null) {
+    let statusText = 'Unknown';
+    let statusClass = 'inactive';
+    
+    switch(status) {
+      case 'active':
+        statusText = 'Active ✅';
+        statusClass = 'active';
+        break;
+      case 'inactive':
+        statusText = 'Inactive ❌';
+        statusClass = 'inactive';
+        break;
+      case 'error':
+        statusText = `Error: ${error || 'Unknown'}`;
+        statusClass = 'inactive';
+        break;
+      default:
+        statusText = 'Checking...';
+    }
+    
+    webcamStatus.innerHTML = `📷 Webcam: ${statusText}`;
+    webcamStatus.className = `webcam-status ${statusClass}`;
+  }
+  
   function updateUI() {
     statusText.textContent = gesturesEnabled ? 'ON' : 'OFF';
     statusText.style.color = gesturesEnabled ? '#90EE90' : '#FF6B6B';
@@ -52,4 +100,5 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize UI
   updateUI();
+  checkWebcamStatus();
 });
