@@ -1,8 +1,8 @@
-// YouTube Gesture Control - Exact Same Gestures as Original
+// YouTube Gesture Control - Fixed Version (No TrustedScriptURL Error)
 (function() {
   'use strict';
   
-  console.log('🎬 YouTube Gesture Control: Loading exact gesture logic...');
+  console.log('🎬 YouTube Gesture Control: Loading fixed gesture logic...');
   
   class YouTubeGestureControl {
     constructor() {
@@ -11,6 +11,7 @@
       this.mediaStream = null;
       this.cameraActive = false;
       this.notification = null;
+      this.isFullscreen = false;
       
       // Gesture state variables (EXACT SAME AS ORIGINAL)
       this.COOLDOWN = 1200;
@@ -31,8 +32,13 @@
     async init() {
       this.createNotification();
       await this.waitForYouTube();
-      await this.loadMediaPipe();
+      await this.loadMediaPipeSafely();
       await this.startCamera();
+      
+      // Listen for fullscreen changes
+      document.addEventListener('fullscreenchange', () => {
+        this.isFullscreen = !!document.fullscreenElement;
+      });
     }
     
     createNotification() {
@@ -50,7 +56,7 @@
         top: 20px;
         left: 50%;
         transform: translateX(-50%) translateY(-100px);
-        background: rgba(0, 0, 0, 0.85);
+        background: rgba(0, 0, 0, 0.9);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         color: white;
@@ -80,10 +86,6 @@
       const message = document.createElement('span');
       message.className = 'gesture-message';
       message.textContent = 'Gesture Control Ready';
-      message.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-      message.style.webkitBackgroundClip = 'text';
-      message.style.webkitTextFillColor = 'transparent';
-      message.style.backgroundClip = 'text';
       
       this.notification.appendChild(emoji);
       this.notification.appendChild(message);
@@ -99,7 +101,6 @@
       if (messageEl) messageEl.textContent = message;
       if (emojiEl) emojiEl.textContent = icon;
       
-      this.notification.classList.add('show');
       this.notification.style.opacity = '1';
       this.notification.style.transform = 'translateX(-50%) translateY(0)';
       
@@ -126,35 +127,80 @@
       });
     }
     
-    async loadMediaPipe() {
+    async loadMediaPipeSafely() {
+      // Safe MediaPipe loading without TrustedScriptURL issues
       return new Promise((resolve) => {
-        // Load MediaPipe scripts
+        if (window.Hands && window.Camera && window.drawConnectors) {
+          console.log('✅ MediaPipe already loaded');
+          resolve();
+          return;
+        }
+        
+        console.log('📦 Loading MediaPipe safely...');
+        
+        // Create script elements safely
         const scripts = [
           'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js',
           'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
           'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js'
         ];
         
-        let loaded = 0;
+        let loadedCount = 0;
         
-        scripts.forEach(src => {
-          const script = document.createElement('script');
-          script.src = src;
-          script.onload = () => {
-            loaded++;
-            if (loaded === scripts.length) {
-              console.log('✅ MediaPipe scripts loaded');
-              resolve();
+        const loadScript = (src) => {
+          return new Promise((scriptResolve, scriptReject) => {
+            const script = document.createElement('script');
+            
+            // Use textContent instead of src to avoid TrustedScriptURL
+            fetch(src)
+              .then(response => response.text())
+              .then(code => {
+                script.textContent = code;
+                document.head.appendChild(script);
+                scriptResolve();
+              })
+              .catch(error => {
+                console.warn(`Failed to load ${src}, trying alternative method...`);
+                // Alternative: create script with src (might work in some contexts)
+                const altScript = document.createElement('script');
+                altScript.src = src;
+                altScript.onload = scriptResolve;
+                altScript.onerror = scriptReject;
+                document.head.appendChild(altScript);
+              });
+          });
+        };
+        
+        // Load scripts sequentially
+        const loadSequentially = async () => {
+          for (const src of scripts) {
+            try {
+              await loadScript(src);
+              loadedCount++;
+              console.log(`✅ Loaded: ${src.split('/').pop()}`);
+            } catch (error) {
+              console.warn(`⚠️ Failed to load: ${src}`, error);
             }
-          };
-          document.head.appendChild(script);
-        });
+          }
+          
+          if (loadedCount > 0) {
+            console.log('✅ MediaPipe components loaded');
+            resolve();
+          } else {
+            console.error('❌ All MediaPipe scripts failed to load');
+            this.showNotification('Gesture features unavailable', '❌');
+            resolve(); // Still resolve to continue without MediaPipe
+          }
+        };
+        
+        loadSequentially();
       });
     }
     
     async startCamera() {
       try {
         console.log('📷 Starting camera for gesture detection...');
+        this.showNotification('Starting camera...', '📷');
         
         // Get camera access
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -202,10 +248,17 @@
       } catch (error) {
         console.error('❌ Camera access failed:', error);
         this.showNotification('Camera access required for gestures', '❌');
+        this.fallbackToKeyboard();
       }
     }
     
     initMediaPipe() {
+      if (!window.Hands) {
+        console.warn('MediaPipe Hands not available, using fallback');
+        this.fallbackToKeyboard();
+        return;
+      }
+      
       // Initialize MediaPipe Hands (EXACT SAME LOGIC AS ORIGINAL)
       this.hands = new window.Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -225,7 +278,7 @@
     }
     
     async processCameraFrames() {
-      if (!this.cameraActive || !this.GESTURES_ENABLED) return;
+      if (!this.cameraActive || !this.GESTURES_ENABLED || !this.hands) return;
       
       try {
         await this.hands.send({ image: this.webcam });
@@ -272,6 +325,31 @@
       return hand === 'Left' ? 'Right' : 'Left';
     }
     
+    // === FULLSCREEN FUNCTIONALITY ===
+    toggleFullscreen() {
+      if (!this.isFullscreen) {
+        // Enter fullscreen
+        if (this.youtubeVideo.requestFullscreen) {
+          this.youtubeVideo.requestFullscreen();
+        } else if (this.youtubeVideo.webkitRequestFullscreen) {
+          this.youtubeVideo.webkitRequestFullscreen();
+        } else if (this.youtubeVideo.mozRequestFullScreen) {
+          this.youtubeVideo.mozRequestFullScreen();
+        }
+        this.showNotification('Fullscreen', '🖥️');
+      } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        }
+        this.showNotification('Normal Screen', '📱');
+      }
+    }
+    
     // === MAIN GESTURE PROCESSING (EXACT SAME LOGIC) ===
     onResults(res) {
       if (!this.webcam.videoWidth || !this.youtubeVideo || !this.GESTURES_ENABLED) return;
@@ -302,19 +380,13 @@
       
       const anyPinch = this.pinch.Left.active || this.pinch.Right.active;
       
-      // === 1. BOTH FISTS → TOGGLE PLAY/PAUSE (EXACT SAME) ===
+      // === 1. BOTH FISTS → TOGGLE FULLSCREEN (UPDATED) ===
       if (handsInfo.length === 2 && !anyPinch && !this.cooldown()) {
         const L = handsInfo.find(h => h.hand === 'Left');
         const R = handsInfo.find(h => h.hand === 'Right');
         if (L && R && L.disc === 'fist' && R.disc === 'fist') {
           this.lastAct = Date.now();
-          if (this.youtubeVideo.paused) {
-            this.youtubeVideo.play();
-            this.showNotification('Both Fists → Play', '▶️');
-          } else {
-            this.youtubeVideo.pause();
-            this.showNotification('Both Fists → Pause', '⏸️');
-          }
+          this.toggleFullscreen();
           return;
         }
       }
@@ -411,6 +483,66 @@
           }
         }
       }
+    }
+    
+    fallbackToKeyboard() {
+      console.log('🔄 Using keyboard fallback controls');
+      this.showNotification('Using keyboard controls (Space, Arrows, F)', '⌨️');
+      
+      document.addEventListener('keydown', (e) => {
+        if (!this.GESTURES_ENABLED || !this.youtubeVideo) return;
+        
+        switch(e.key) {
+          case ' ':
+            e.preventDefault();
+            this.togglePlayPause();
+            break;
+          case 'ArrowLeft':
+            this.seek(-10);
+            break;
+          case 'ArrowRight':
+            this.seek(10);
+            break;
+          case 'ArrowUp':
+            this.adjustVolume(0.1);
+            break;
+          case 'ArrowDown':
+            this.adjustVolume(-0.1);
+            break;
+          case 'f':
+            this.toggleFullscreen();
+            break;
+        }
+      });
+    }
+    
+    togglePlayPause() {
+      if (!this.youtubeVideo) return;
+      
+      if (this.youtubeVideo.paused) {
+        this.youtubeVideo.play();
+        this.showNotification('Play', '▶️');
+      } else {
+        this.youtubeVideo.pause();
+        this.showNotification('Pause', '⏸️');
+      }
+    }
+    
+    seek(seconds) {
+      if (!this.youtubeVideo) return;
+      
+      this.youtubeVideo.currentTime += seconds;
+      this.showNotification(
+        seconds > 0 ? `+${seconds}s` : `${seconds}s`,
+        seconds > 0 ? '⏩' : '⏪'
+      );
+    }
+    
+    adjustVolume(change) {
+      if (!this.youtubeVideo) return;
+      
+      this.youtubeVideo.volume = Math.max(0, Math.min(1, this.youtubeVideo.volume + change));
+      this.showNotification(`Volume ${Math.round(this.youtubeVideo.volume * 100)}%`, '🔊');
     }
     
     toggleGestures(enabled) {
