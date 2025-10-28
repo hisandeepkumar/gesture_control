@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Keyboard Gestures",
-  "version": "5.0",
-  "description": "Control YouTube with keyboard-triggered gestures - No Camera Required",
+  "name": "YouTube Camera Gestures",
+  "version": "6.0",
+  "description": "Control YouTube with camera gestures mapped to keyboard",
   "permissions": [
     "activeTab"
   ],
