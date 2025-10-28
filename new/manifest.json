@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Gesture Control",
-  "version": "3.0",
-  "description": "Control YouTube videos with hand gestures",
+  "name": "YouTube Keyboard Gestures",
+  "version": "5.0",
+  "description": "Control YouTube with keyboard-triggered gestures - No Camera Required",
   "permissions": [
     "activeTab"
   ],
