@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Gesture Control",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Control YouTube videos with hand gestures",
   "permissions": [
     "activeTab",
@@ -11,7 +11,8 @@
     {
       "matches": ["*://*.youtube.com/*"],
       "js": ["content.js"],
-      "run_at": "document_end"
+      "run_at": "document_end",
+      "all_frames": true
     }
   ],
   "background": {
@@ -23,8 +24,11 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["injected.js"],
+      "resources": ["injected.js", "camera.html"],
       "matches": ["*://*.youtube.com/*"]
     }
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*"
   ]
 }
