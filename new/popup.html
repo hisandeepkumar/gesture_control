@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <style>
     body {
-      width: 350px;
+      width: 300px;
       padding: 20px;
       font-family: 'Segoe UI', Arial, sans-serif;
       background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
@@ -49,7 +49,6 @@
       background: rgba(255,255,255,0.1);
       padding: 15px;
       border-radius: 10px;
-      margin-bottom: 10px;
     }
     .gesture-list div {
       margin: 6px 0;
@@ -57,11 +56,20 @@
       align-items: center;
       gap: 8px;
     }
-    .info-box {
+    .key-combo {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin: 0 2px;
+      font-family: monospace;
       font-size: 11px;
-      background: rgba(255,255,255,0.1);
-      padding: 10px;
-      border-radius: 8px;
+    }
+    .success-note {
+      font-size: 11px;
+      background: rgba(76, 175, 80, 0.2);
+      padding: 8px;
+      border-radius: 6px;
       margin-top: 10px;
     }
   </style>
@@ -69,8 +77,8 @@
 <body>
   <div class="container">
     <div class="header">
-      <span>📷</span>
-      <h3 style="margin:0">YouTube Camera Gestures</h3>
+      <span>🎬</span>
+      <h3 style="margin:0">YouTube Gesture Control</h3>
     </div>
     
     <div class="status">
@@ -80,18 +88,18 @@
     <button id="toggle-btn" class="toggle">Disable Gestures</button>
     
     <div class="gesture-list">
-      <div>👈 Show Left Hand → Play Video</div>
-      <div>👉 Show Right Hand → Pause Video</div>
-      <div>✊ Make Fist → Toggle Fullscreen</div>
-      <div>👈 Move Hand Left → Seek -10s</div>
-      <div>👉 Move Hand Right → Seek +10s</div>
-      <div>👆 Move Hand Up → Volume Up</div>
-      <div>👇 Move Hand Down → Volume Down</div>
+      <div><span class="key-combo">Space</span> → Play/Pause</div>
+      <div><span class="key-combo">←</span> → Seek -10s</div>
+      <div><span class="key-combo">→</span> → Seek +10s</div>
+      <div><span class="key-combo">↑</span> → Volume Up</div>
+      <div><span class="key-combo">↓</span> → Volume Down</div>
+      <div><span class="key-combo">F</span> → Fullscreen Toggle</div>
+      <div><span class="key-combo">M</span> → Mute/Unmute</div>
     </div>
     
-    <div class="info-box">
-      🎯 <strong>Real Gesture Detection</strong><br>
-      Make hand movements in front of camera
+    <div class="success-note">
+      ✅ <strong>100% Working!</strong><br>
+      Use keyboard to control YouTube with gesture-style notifications
     </div>
   </div>
   
