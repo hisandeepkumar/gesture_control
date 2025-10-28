@@ -6,7 +6,7 @@
   if (window.gestureControlInjected) return;
   window.gestureControlInjected = true;
   
-  // Create and inject the gesture control UI
+  // Create and inject the gesture control script
   const script = document.createElement('script');
   script.src = chrome.runtime.getURL('injected.js');
   document.head.appendChild(script);
@@ -20,7 +20,6 @@
       }, '*');
     }
     if (request.action === 'getStatus') {
-      // Get status from injected script
       window.postMessage({type: 'GET_STATUS'}, '*');
     }
   });
