@@ -1,34 +1,26 @@
 {
   "manifest_version": 3,
   "name": "YouTube Gesture Control",
-  "version": "1.1",
-  "description": "Control YouTube videos with hand gestures",
+  "version": "3.0",
+  "description": "Control YouTube with hand gestures",
   "permissions": [
-    "activeTab",
-    "storage"
+    "activeTab"
   ],
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
+      "matches": ["https://*.youtube.com/*"],
       "js": ["content.js"],
       "run_at": "document_end",
-      "all_frames": true
+      "all_frames": false
     }
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "YouTube Gesture Control"
-  },
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "camera.html"],
-      "matches": ["*://*.youtube.com/*"]
+      "resources": ["injected.js"],
+      "matches": ["https://*.youtube.com/*"]
     }
   ],
-  "host_permissions": [
-    "*://*.youtube.com/*"
-  ]
+  "action": {
+    "default_popup": "popup.html"
+  }
 }
