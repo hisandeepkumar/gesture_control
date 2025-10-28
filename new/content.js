@@ -10,7 +10,7 @@
     script.src = chrome.runtime.getURL('injected.js');
     script.onload = function() {
       this.remove();
-      console.log('YouTube Gesture Control: Script injected successfully');
+      console.log('🎬 YouTube Keyboard Gestures: Script injected successfully');
     };
     (document.head || document.documentElement).appendChild(script);
   }
