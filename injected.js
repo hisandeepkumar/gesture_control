@@ -1,13 +1,13 @@
 (function() {
   'use strict';
   
-  // Main gesture control logic - adapted from your original code
-  class UniversalGestureControl {
+  class GestureControl {
     constructor() {
       this.GESTURES_ENABLED = true;
       this.currentVideo = null;
-      this.initialized = false;
+      this.notificationTimeout = null;
       
+      this.initGestureState();
       this.init();
     }
     
@@ -21,11 +21,11 @@
     }
     
     setup() {
-      this.createUI();
+      this.createNotificationElement();
       this.findVideoElements();
       this.setupMediaPipe();
       
-      // Watch for new video elements (like in SPAs)
+      // Watch for new video elements
       this.observer = new MutationObserver(() => {
         this.findVideoElements();
       });
@@ -34,58 +34,86 @@
         childList: true,
         subtree: true
       });
-      
-      this.initialized = true;
     }
     
-    createUI() {
-      // Remove existing UI if present
-      const existingUI = document.getElementById('gesture-control-ui');
-      if (existingUI) existingUI.remove();
+    createNotificationElement() {
+      // Remove existing notification if present
+      const existing = document.getElementById('gesture-notification');
+      if (existing) existing.remove();
       
-      // Create gesture control UI
-      this.ui = document.createElement('div');
-      this.ui.id = 'gesture-control-ui';
-      this.ui.innerHTML = `
+      // Create notification element
+      this.notification = document.createElement('div');
+      this.notification.id = 'gesture-notification';
+      this.notification.innerHTML = `
         <style>
-          #gesture-control-ui {
+          #gesture-notification {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            color: #333;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             z-index: 10000;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            max-width: 200px;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 200px;
+            justify-content: center;
           }
-          #gesture-control-ui .status {
-            margin-bottom: 5px;
+          #gesture-notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
           }
-          #gesture-control-ui .toggle {
-            background: #4a00e0;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
+          #gesture-notification .icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
-          #gesture-control-ui .toggle.off {
-            background: #ff416c;
+          #gesture-notification .gesture-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
           }
         </style>
-        <div class="status">Gestures: <span id="gesture-status">ON</span></div>
-        <button class="toggle" id="gesture-toggle">Disable</button>
+        <div class="icon">👆</div>
+        <span class="gesture-text" id="gesture-text">Gesture Detected</span>
       `;
       
-      document.body.appendChild(this.ui);
+      document.body.appendChild(this.notification);
+    }
+    
+    showNotification(message, icon = '👆') {
+      const textEl = document.getElementById('gesture-text');
+      const iconEl = this.notification.querySelector('.icon');
       
-      // Add toggle handler
-      this.ui.querySelector('#gesture-toggle').addEventListener('click', () => {
-        this.toggleGestures(!this.GESTURES_ENABLED);
-      });
+      if (textEl) textEl.textContent = message;
+      if (iconEl) iconEl.textContent = icon;
+      
+      this.notification.classList.add('show');
+      
+      // Clear existing timeout
+      if (this.notificationTimeout) {
+        clearTimeout(this.notificationTimeout);
+      }
+      
+      // Hide after 2 seconds
+      this.notificationTimeout = setTimeout(() => {
+        this.notification.classList.remove('show');
+      }, 2000);
     }
     
     findVideoElements() {
@@ -98,25 +126,17 @@
           v.offsetParent !== null && // Visible
           v.readyState > 0 // Has loaded data
         ) || videos[0];
-        
-        console.log('Gesture Control: Found video element', this.currentVideo);
       }
     }
     
     toggleGestures(enabled) {
       this.GESTURES_ENABLED = enabled;
-      const statusEl = document.getElementById('gesture-status');
-      const toggleBtn = document.getElementById('gesture-toggle');
       
-      if (statusEl) {
-        statusEl.textContent = enabled ? 'ON' : 'OFF';
-        statusEl.style.color = enabled ? '#0f0' : '#f00';
-      }
-      
-      if (toggleBtn) {
-        toggleBtn.textContent = enabled ? 'Disable' : 'Enable';
-        toggleBtn.className = enabled ? 'toggle' : 'toggle off';
-      }
+      // Show status notification
+      this.showNotification(
+        enabled ? 'Gestures Enabled' : 'Gestures Disabled',
+        enabled ? '✅' : '❌'
+      );
       
       // Send status to popup
       window.postMessage({
@@ -125,14 +145,14 @@
       }, '*');
     }
     
-    // MediaPipe and gesture detection logic from your original code
+    // MediaPipe setup
     async setupMediaPipe() {
       // Load MediaPipe scripts
       await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js');
       await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
       await this.loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js');
       
-      // Create camera and canvas elements
+      // Create hidden camera elements
       this.createCameraElements();
       
       // Initialize MediaPipe Hands
@@ -177,17 +197,16 @@
     }
     
     createCameraElements() {
-      // Create hidden webcam element
+      // Create completely hidden webcam element
       this.webcam = document.createElement('video');
       this.webcam.id = 'gesture-webcam';
-      this.webcam.style.cssText = 'width:1px;height:1px;opacity:0;position:absolute;pointer-events:none';
+      this.webcam.style.cssText = 'width:1px;height:1px;opacity:0;position:absolute;pointer-events:none;left:-100px';
       this.webcam.autoplay = true;
       this.webcam.playsInline = true;
       
-      // Create canvas for hand visualization
+      // Create hidden canvas for processing only
       this.canvas = document.createElement('canvas');
-      this.canvas.id = 'gesture-canvas';
-      this.canvas.style.cssText = 'position:fixed;bottom:80px;right:20px;width:160px;height:120px;z-index:10000;border:2px solid white;border-radius:8px;background:#000';
+      this.canvas.style.cssText = 'display:none';
       
       document.body.appendChild(this.webcam);
       document.body.appendChild(this.canvas);
@@ -195,7 +214,7 @@
       this.ctx = this.canvas.getContext('2d');
     }
     
-    // Gesture state variables (from your original code)
+    // Gesture state variables
     initGestureState() {
       this.COOLDOWN = 1200;
       this.lastAct = 0;
@@ -211,7 +230,7 @@
       return Date.now() - this.lastAct < this.COOLDOWN;
     }
     
-    // Gesture recognition functions (from your original code)
+    // Gesture recognition functions
     fingerState(lm, hand) {
       const tips = [8, 12, 16, 20], pips = [6, 10, 14, 18];
       let ext = 0;
@@ -242,7 +261,7 @@
       return hand === 'Left' ? 'Right' : 'Left';
     }
     
-    // Process MediaPipe results (adapted from your original code)
+    // Process MediaPipe results
     onResults(res) {
       if (!this.webcam.videoWidth || !this.currentVideo || !this.GESTURES_ENABLED) return;
       
@@ -251,7 +270,7 @@
       this.ctx.save();
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       
-      // Mirror and draw camera feed
+      // Mirror and process (but don't draw)
       this.ctx.scale(-1, 1);
       this.ctx.translate(-this.canvas.width, 0);
       this.ctx.drawImage(res.image, 0, 0, this.canvas.width, this.canvas.height);
@@ -273,18 +292,7 @@
         lm.map(p => ({x: 1 - p.x, y: p.y, z: p.z}))
       );
       
-      // Draw hand landmarks
-      for (let i = 0; i < mirroredLandmarks.length; i++) {
-        const lm = mirroredLandmarks[i];
-        window.drawConnectors(this.ctx, lm, window.HAND_CONNECTIONS, {
-          color: '#0f0', lineWidth: 2
-        });
-        window.drawLandmarks(this.ctx, lm, {
-          color: '#ff0', lineWidth: 1
-        });
-      }
-      
-      // Process gestures
+      // Process gestures (no drawing)
       const handsInfo = [];
       for (let i = 0; i < mirroredLandmarks.length; i++) {
         const lm = mirroredLandmarks[i];
@@ -304,8 +312,10 @@
           this.lastAct = Date.now();
           if (this.currentVideo.paused) {
             this.currentVideo.play().catch(() => {});
+            this.showNotification('Both Fists → Play', '▶️');
           } else {
             this.currentVideo.pause();
+            this.showNotification('Both Fists → Pause', '⏸️');
           }
           this.ctx.restore();
           return;
@@ -319,8 +329,10 @@
           this.lastAct = Date.now();
           if (h.hand === 'Left') {
             this.currentVideo.play().catch(() => {});
+            this.showNotification('Left Open → Play', '▶️');
           } else {
             this.currentVideo.pause();
+            this.showNotification('Right Open → Pause', '⏸️');
           }
           this.ctx.restore();
           return;
@@ -359,6 +371,7 @@
                 const volDelta = dx * 0.002;
                 const newVol = Math.max(0, Math.min(1, st.start.vol + volDelta));
                 this.currentVideo.volume = newVol;
+                this.showNotification(`Volume ${Math.round(newVol*100)}%`, '🔊');
               } else {
                 const seekSec = dx * 0.08;
                 const target = Math.max(0, Math.min(
@@ -366,6 +379,7 @@
                   st.start.time + seekSec
                 ));
                 this.currentVideo.currentTime = target;
+                this.showNotification(`Seek ${Math.round(target)}s`, '⏩');
               }
             }
             st.last = {cx: p.cx};
@@ -381,10 +395,12 @@
                   this.currentVideo.currentTime = Math.max(0, 
                     this.currentVideo.currentTime - 10
                   );
+                  this.showNotification('-10 Seconds', '⏪');
                 } else {
                   this.currentVideo.currentTime = Math.min(this.currentVideo.duration,
                     this.currentVideo.currentTime + 10
                   );
+                  this.showNotification('+10 Seconds', '⏩');
                 }
                 this.tapTs[hand] = 0;
               } else {
@@ -403,17 +419,17 @@
   }
   
   // Initialize gesture control
-  window.universalGestureControl = new UniversalGestureControl();
+  window.gestureControl = new GestureControl();
   
   // Listen for toggle messages
   window.addEventListener('message', (event) => {
     if (event.data.type === 'TOGGLE_GESTURES') {
-      window.universalGestureControl.toggleGestures(event.data.enabled);
+      window.gestureControl.toggleGestures(event.data.enabled);
     }
     if (event.data.type === 'GET_STATUS') {
       window.postMessage({
         type: 'GESTURE_STATUS',
-        enabled: window.universalGestureControl.GESTURES_ENABLED
+        enabled: window.gestureControl.GESTURES_ENABLED
       }, '*');
     }
   });
