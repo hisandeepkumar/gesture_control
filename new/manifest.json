@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YouTube Gesture Control",
-  "version": "2.0",
-  "description": "Control YouTube videos with exact same hand gestures",
+  "version": "3.0",
+  "description": "Control YouTube videos with hand gestures",
   "permissions": [
     "activeTab"
   ],
