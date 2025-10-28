@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Universal Gesture Video Control",
+  "name": "Gesture Video Control",
   "version": "1.0",
-  "description": "Control videos with hand gestures on any website",
+  "description": "Control videos with hand gestures - discreet notifications",
   "permissions": [
     "activeTab",
     "storage"
